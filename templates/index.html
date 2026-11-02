@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockCast | Predictive Analytics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand">STOCK<span>CAST</span></div>
+        <p class="side-label">WORKSPACE</p>
+<a href="/" class="nav active">
+    ▦ &nbsp; Dashboard
+</a>
+
+<a href="/market-analysis" class="nav">
+    ◷ &nbsp; Market Analysis
+</a>
+
+<a href="/predictions" class="nav">
+    ⌁ &nbsp; Predictions
+</a>
+
+        <div class="sidebar-bottom">
+            <div class="status-dot"></div>
+            <span>Prediction engine ready</span>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header>
+            <div>
+                <p class="eyebrow">MARKET INTELLIGENCE PLATFORM</p>
+                <h1>Stock Market Dashboard</h1>
+                <p class="subtitle">Analyze trends. Understand patterns. Explore predictions.</p>
+            </div>
+            <div class="live-status"><span></span> LIVE DATA</div>
+        </header>
+
+        <section class="controls">
+            <div>
+                <label for="ticker">SELECT STOCK</label>
+                <select id="ticker">
+                    {% for name, symbol in tickers.items() %}
+                    <option value="{{ symbol }}">{{ name }} ({{ symbol }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="period">TIME PERIOD</label>
+                <select id="period">
+                    <option value="6mo">6 Months</option>
+                    <option value="1y" selected>1 Year</option>
+                    <option value="2y">2 Years</option>
+                    <option value="5y">5 Years</option>
+                </select>
+            </div>
+
+            <button id="analyzeBtn" onclick="analyzeStock()">ANALYZE STOCK</button>
+        </section>
+
+        <div id="message" class="message">Select a stock and click Analyze Stock to begin.</div>
+
+        <section class="metrics">
+            <div class="metric-card">
+                <p>CURRENT PRICE</p>
+                <h2 id="price">--</h2>
+                <span id="change">Waiting for data</span>
+            </div>
+
+            <div class="metric-card">
+                <p>MODEL ACCURACY</p>
+                <h2 id="accuracy">--</h2>
+                <span>Historical test-set accuracy</span>
+            </div>
+
+            <div class="metric-card">
+                <p>RSI INDICATOR</p>
+                <h2 id="rsi">--</h2>
+                <span>Relative Strength Index</span>
+            </div>
+
+            <div class="metric-card prediction-card">
+                <p>NEXT SESSION OUTLOOK</p>
+                <h2 id="prediction">--</h2>
+                <span id="confidence">Model prediction</span>
+            </div>
+        </section>
+
+        <section class="chart-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">PRICE MOVEMENT</p>
+                    <h2>Stock Performance</h2>
+                </div>
+                <span class="tag">LAST 90 SESSIONS</span>
+            </div>
+            <div id="priceChart" class="chart"></div>
+        </section>
+
+        <section class="bottom-grid">
+            <div class="chart-section">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">TRADING ACTIVITY</p>
+                        <h2>Volume Analysis</h2>
+                    </div>
+                </div>
+                <div id="volumeChart" class="chart small-chart"></div>
+            </div>
+
+            <div class="chart-section probability">
+                <p class="eyebrow">PREDICTION BREAKDOWN</p>
+                <h2>Probability Analysis</h2>
+
+                <div class="prob-row">
+                    <div><span>UPWARD</span><strong id="upValue">--</strong></div>
+                    <div class="progress"><div id="upBar" class="up-bar"></div></div>
+                </div>
+
+                <div class="prob-row">
+                    <div><span>DOWNWARD</span><strong id="downValue">--</strong></div>
+                    <div class="progress"><div id="downBar" class="down-bar"></div></div>
+                </div>
+
+                <p class="disclaimer">
+                    Predictions are estimates generated from historical data.
+                    They are not financial advice or guaranteed outcomes.
+                </p>
+            </div>
+        </section>
+
+        <footer>
+            STOCKCAST · MACHINE LEARNING POWERED MARKET ANALYSIS
+            <span id="updated">Not yet updated</span>
+        </footer>
+    </main>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

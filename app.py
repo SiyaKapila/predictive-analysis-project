@@ -1,247 +1,163 @@
-import streamlit as st
+from flask import Flask, render_template, request, jsonify
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score
+from datetime import datetime
 
-st.set_page_config(page_title="StockCast", page_icon="📈", layout="wide")
+app = Flask(__name__)
 
-st.title("StockCast")
-st.caption("Explore historical stock trends and estimate the next trading day's direction.")
-st.warning(
-    "Educational project only. Predictions are uncertain and are not investment advice. "
-    "The model uses historical market data and does not guarantee future results."
-)
-
-DEFAULT_TICKERS = {
-    "Reliance Industries": "RELIANCE.NS",
-    "Tata Consultancy Services": "TCS.NS",
-    "Infosys": "INFY.NS",
-    "HDFC Bank": "HDFCBANK.NS",
+TICKERS = {
     "Apple": "AAPL",
     "Microsoft": "MSFT",
+    "NVIDIA": "NVDA",
+    "Reliance": "RELIANCE.NS",
+    "TCS": "TCS.NS",
+    "Infosys": "INFY.NS",
+    "HDFC Bank": "HDFCBANK.NS",
+    "ICICI Bank": "ICICIBANK.NS"
 }
 
-FEATURES = [
-    "return_1d",
-    "return_5d",
-    "ma_ratio_5",
-    "ma_ratio_20",
-    "volatility_5",
-    "volatility_20",
-    "volume_change",
-    "rsi_14",
-]
+def calculate_rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = -delta.clip(upper=0).rolling(period).mean()
+    rs = gain / loss.replace(0, np.nan)
+    return 100 - (100 / (1 + rs))
 
 
-@st.cache_data(ttl=900)
-def get_stock_data(ticker: str, period: str) -> pd.DataFrame:
-    data = yf.download(
-        ticker,
-        period=period,
-        interval="1d",
-        auto_adjust=True,
-        progress=False,
-        threads=False,
+def analyze_stock(ticker, period):
+    stock = yf.Ticker(ticker)
+    df = stock.history(period=period, auto_adjust=True)
+
+    if df.empty or len(df) < 100:
+        raise ValueError("Not enough stock data available. Try another stock or time period.")
+
+    df = df.copy()
+    df["Return"] = df["Close"].pct_change()
+    df["MA_5"] = df["Close"].rolling(5).mean()
+    df["MA_10"] = df["Close"].rolling(10).mean()
+    df["MA_20"] = df["Close"].rolling(20).mean()
+    df["Volatility"] = df["Return"].rolling(10).std()
+    df["Volume_Change"] = df["Volume"].pct_change()
+    df["RSI"] = calculate_rsi(df["Close"])
+
+    # Predict whether the next trading session closes higher
+    df["Target"] = (df["Close"].shift(-1) > df["Close"]).astype(int)
+
+    features = [
+        "Return", "MA_5", "MA_10", "MA_20",
+        "Volatility", "Volume_Change", "RSI"
+    ]
+
+    clean = df.dropna(subset=features).copy()
+
+    # Remove the last row because its future target is unknown
+    training_data = clean.iloc[:-1]
+
+    if len(training_data) < 80:
+        raise ValueError("Not enough usable data to train the model.")
+
+    X = training_data[features].replace([np.inf, -np.inf], np.nan)
+    y = training_data["Target"]
+    valid = X.notna().all(axis=1)
+    X = X[valid]
+    y = y[valid]
+
+    split = int(len(X) * 0.8)
+    if split < 30 or len(X) - split < 10:
+        raise ValueError("Not enough data for model evaluation.")
+
+    X_train, X_test = X.iloc[:split], X.iloc[split:]
+    y_train, y_test = y.iloc[:split], y.iloc[split:]
+
+    model = RandomForestClassifier(
+        n_estimators=150,
+        max_depth=6,
+        random_state=42,
+        class_weight="balanced"
     )
 
-    if data.empty:
-        return pd.DataFrame()
+    model.fit(X_train, y_train)
 
-    # Recent yfinance versions can return multi-level column names.
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
+    predictions = model.predict(X_test)
+    accuracy = accuracy_score(y_test, predictions) * 100
 
-    required = ["Close", "Volume"]
-    if not all(column in data.columns for column in required):
-        return pd.DataFrame()
+    latest = clean.iloc[-1:][features].replace([np.inf, -np.inf], np.nan)
+    if latest.isna().any().any():
+        raise ValueError("Latest stock indicators are incomplete.")
 
-    data = data[required].copy()
-    data = data.dropna()
-    data["Close"] = pd.to_numeric(data["Close"], errors="coerce")
-    data["Volume"] = pd.to_numeric(data["Volume"], errors="coerce")
-    return data.dropna()
+    probabilities = model.predict_proba(latest)[0]
+    classes = list(model.classes_)
+    up_probability = float(probabilities[classes.index(1)]) if 1 in classes else 0
+    down_probability = float(probabilities[classes.index(0)]) if 0 in classes else 0
 
+    prediction = "UP" if up_probability >= down_probability else "DOWN"
 
-def calculate_rsi(series: pd.Series, window: int = 14) -> pd.Series:
-    change = series.diff()
-    gains = change.clip(lower=0)
-    losses = -change.clip(upper=0)
+    chart_df = df.dropna(subset=["Close"]).tail(90)
 
-    average_gain = gains.rolling(window).mean()
-    average_loss = losses.rolling(window).mean()
+    history = []
+    for date, row in chart_df.iterrows():
+        history.append({
+            "date": date.strftime("%Y-%m-%d"),
+            "price": round(float(row["Close"]), 2),
+            "volume": int(row["Volume"])
+        })
 
-    relative_strength = average_gain / average_loss.replace(0, np.nan)
-    rsi = 100 - (100 / (1 + relative_strength))
-    return rsi.fillna(50)
-
-
-def make_features(data: pd.DataFrame) -> pd.DataFrame:
-    result = data.copy()
-    close = result["Close"]
-
-    result["return_1d"] = close.pct_change()
-    result["return_5d"] = close.pct_change(5)
-    result["ma_ratio_5"] = close / close.rolling(5).mean() - 1
-    result["ma_ratio_20"] = close / close.rolling(20).mean() - 1
-    result["volatility_5"] = result["return_1d"].rolling(5).std()
-    result["volatility_20"] = result["return_1d"].rolling(20).std()
-    result["volume_change"] = result["Volume"].pct_change().replace(
-        [np.inf, -np.inf], np.nan
-    )
-    result["rsi_14"] = calculate_rsi(close)
-
-    # Target: 1 if the next trading day's closing price is higher, otherwise 0.
-    result["target"] = (close.shift(-1) > close).astype(int)
-    result.loc[close.shift(-1).isna(), "target"] = np.nan
-
-    result = result.replace([np.inf, -np.inf], np.nan)
-    return result
+    return {
+        "ticker": ticker,
+        "prediction": prediction,
+        "up_probability": round(up_probability * 100, 2),
+        "down_probability": round(down_probability * 100, 2),
+        "accuracy": round(accuracy, 2),
+        "current_price": round(float(df["Close"].iloc[-1]), 2),
+        "change": round(float(df["Close"].pct_change().iloc[-1]) * 100, 2),
+        "rsi": round(float(clean["RSI"].iloc[-1]), 2),
+        "history": history,
+        "last_updated": datetime.now().strftime("%d %b %Y, %I:%M %p")
+    }
 
 
-def money(value: float) -> str:
-    return f"{value:,.2f}"
+@app.route("/")
+def home():
+    return render_template("index.html", tickers=TICKERS, active="dashboard")
 
 
-with st.sidebar:
-    st.header("Stock settings")
-    selected_name = st.selectbox("Choose a stock", list(DEFAULT_TICKERS.keys()))
-    ticker = DEFAULT_TICKERS[selected_name]
-    period = st.selectbox("Historical data period", ["1y", "2y", "5y", "10y"], index=2)
-    st.caption(f"Ticker: {ticker}")
-    refresh = st.button("Refresh data")
+@app.route("/market-analysis")
+def market_analysis():
+    return render_template("index.html", tickers=TICKERS, active="market")
 
-if refresh:
-    get_stock_data.clear()
 
-with st.spinner("Downloading historical stock data..."):
-    raw_data = get_stock_data(ticker, period)
+@app.route("/predictions")
+def predictions():
+    return render_template("index.html", tickers=TICKERS, active="predictions")
 
-if raw_data.empty or len(raw_data) < 80:
-    st.error(
-        "Stock data could not be loaded or there is not enough history. "
-        "Check your internet connection or try another stock."
-    )
-    st.stop()
 
-featured = make_features(raw_data)
-training_data = featured.dropna(subset=FEATURES + ["target"]).copy()
+@app.route("/api/analyze", methods=["POST"])
+def analyze():
+    data = request.get_json(silent=True) or {}
+    ticker = data.get("ticker", "AAPL")
+    period = data.get("period", "1y")
 
-if len(training_data) < 50:
-    st.error("Not enough clean data to train the model. Try a longer historical period.")
-    st.stop()
+    if ticker not in TICKERS.values():
+        return jsonify({"error": "Invalid stock selection."}), 400
 
-# Chronological split: earlier observations train the model; later observations test it.
-split_index = int(len(training_data) * 0.8)
-train = training_data.iloc[:split_index]
-test = training_data.iloc[split_index:]
+    if period not in ["6mo", "1y", "2y", "5y"]:
+        return jsonify({"error": "Invalid time period."}), 400
 
-if train.empty or test.empty:
-    st.error("Not enough data for a training and testing split.")
-    st.stop()
+    try:
+        result = analyze_stock(ticker, period)
+        return jsonify(result)
+    except Exception as error:
+        return jsonify({"error": str(error)}), 500
 
-model = RandomForestClassifier(
-    n_estimators=250,
-    max_depth=6,
-    min_samples_leaf=4,
-    random_state=42,
-    class_weight="balanced",
-)
-model.fit(train[FEATURES], train["target"].astype(int))
 
-test_predictions = model.predict(test[FEATURES])
-accuracy = accuracy_score(test["target"].astype(int), test_predictions)
+@app.route("/health")
+def health():
+    return jsonify({"status": "StockCast is running"})
 
-latest_features = featured.dropna(subset=FEATURES).iloc[[-1]]
-latest_prediction = int(model.predict(latest_features[FEATURES])[0])
-probabilities = model.predict_proba(latest_features[FEATURES])[0]
-class_to_probability = dict(zip(model.classes_, probabilities))
-up_probability = float(class_to_probability.get(1, 0.0))
-down_probability = float(class_to_probability.get(0, 0.0))
 
-last_close = float(raw_data["Close"].iloc[-1])
-last_date = raw_data.index[-1].strftime("%d %b %Y")
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000, debug=True)
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Latest closing price", money(last_close))
-col2.metric("Last data date", last_date)
-col3.metric("Test accuracy", f"{accuracy:.1%}")
-col4.metric("Historical records", f"{len(raw_data):,}")
-
-st.subheader(f"{selected_name}: historical price")
-price_chart = go.Figure()
-price_chart.add_trace(
-    go.Scatter(
-        x=raw_data.index,
-        y=raw_data["Close"],
-        mode="lines",
-        name="Adjusted close",
-    )
-)
-price_chart.update_layout(
-    xaxis_title="Date",
-    yaxis_title="Price",
-    height=420,
-    margin=dict(l=10, r=10, t=25, b=10),
-)
-st.plotly_chart(price_chart, use_container_width=True)
-
-st.subheader("Next trading day direction estimate")
-left, right = st.columns([1, 2])
-
-with left:
-    if latest_prediction == 1:
-        st.success("Model estimate: UP")
-    else:
-        st.error("Model estimate: DOWN")
-    st.metric("Estimated probability of an upward move", f"{up_probability:.1%}")
-    st.metric("Estimated probability of a downward move", f"{down_probability:.1%}")
-    st.caption(
-        "These are model probabilities, not reliable real-world odds or a recommendation to trade."
-    )
-
-with right:
-    probability_chart = go.Figure(
-        data=[
-            go.Bar(
-                x=["Down", "Up"],
-                y=[down_probability, up_probability],
-                text=[f"{down_probability:.1%}", f"{up_probability:.1%}"],
-                textposition="auto",
-            )
-        ]
-    )
-    probability_chart.update_layout(
-        yaxis_title="Model probability",
-        yaxis=dict(range=[0, 1], tickformat=".0%"),
-        height=300,
-        margin=dict(l=10, r=10, t=25, b=10),
-    )
-    st.plotly_chart(probability_chart, use_container_width=True)
-
-st.subheader("Model evaluation")
-st.write(
-    "The model is trained on the earlier 80% of the available observations "
-    "and evaluated on the later 20%, preserving time order."
-)
-report = classification_report(
-    test["target"].astype(int),
-    test_predictions,
-    labels=[0, 1],
-    target_names=["Down / unchanged", "Up"],
-    output_dict=True,
-    zero_division=0,
-)
-report_df = pd.DataFrame(report).transpose().round(3)
-st.dataframe(report_df, use_container_width=True)
-
-with st.expander("View recent historical data"):
-    st.dataframe(raw_data.tail(15), use_container_width=True)
-
-st.caption(
-    "StockCast is a student predictive-analytics prototype. "
-    "Past performance does not predict future results."
-)
