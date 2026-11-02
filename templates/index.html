@@ -4,141 +4,316 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StockCast | Predictive Analytics</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
+
 <body>
+<div class="app-shell">
 
-<div class="app">
     <aside class="sidebar">
-        <div class="brand">STOCK<span>CAST</span></div>
-        <p class="side-label">WORKSPACE</p>
-<a href="/" class="nav active">
-    ▦ &nbsp; Dashboard
-</a>
+        <div class="brand">
+            <div class="brand-mark">S</div>
+            <div>
+                <h2>STOCKCAST</h2>
+                <span>INTELLIGENCE TERMINAL</span>
+            </div>
+        </div>
 
-<a href="/market-analysis" class="nav">
-    ◷ &nbsp; Market Analysis
-</a>
+        <div class="nav-label">WORKSPACE</div>
 
-<a href="/predictions" class="nav">
-    ⌁ &nbsp; Predictions
-</a>
+        <nav>
+            <a href="#" class="rail-link active" id="overviewNav">
+                <span class="nav-symbol">01</span>
+                Overview
+            </a>
+            <a href="#" class="rail-link" id="presentationNav">
+                <span class="nav-symbol">02</span>
+                Presentation
+            </a>
+        </nav>
 
         <div class="sidebar-bottom">
             <div class="status-dot"></div>
-            <span>Prediction engine ready</span>
+            <span>ANALYTICS SYSTEM</span>
+            <strong>ONLINE</strong>
         </div>
     </aside>
 
-    <main class="main">
-        <header>
-            <div>
-                <p class="eyebrow">MARKET INTELLIGENCE PLATFORM</p>
-                <h1>Stock Market Dashboard</h1>
-                <p class="subtitle">Analyze trends. Understand patterns. Explore predictions.</p>
-            </div>
-            <div class="live-status"><span></span> LIVE DATA</div>
-        </header>
+    <main class="main-content">
 
-        <section class="controls">
-            <div>
-                <label for="ticker">SELECT STOCK</label>
-                <select id="ticker">
-                    {% for name, symbol in tickers.items() %}
-                    <option value="{{ symbol }}">{{ name }} ({{ symbol }})</option>
-                    {% endfor %}
-                </select>
-            </div>
+        <!-- OVERVIEW PAGE -->
+        <section id="overviewPage">
 
-            <div>
-                <label for="period">TIME PERIOD</label>
-                <select id="period">
-                    <option value="6mo">6 Months</option>
-                    <option value="1y" selected>1 Year</option>
-                    <option value="2y">2 Years</option>
-                    <option value="5y">5 Years</option>
-                </select>
-            </div>
-
-            <button id="analyzeBtn" onclick="analyzeStock()">ANALYZE STOCK</button>
-        </section>
-
-        <div id="message" class="message">Select a stock and click Analyze Stock to begin.</div>
-
-        <section class="metrics">
-            <div class="metric-card">
-                <p>CURRENT PRICE</p>
-                <h2 id="price">--</h2>
-                <span id="change">Waiting for data</span>
-            </div>
-
-            <div class="metric-card">
-                <p>MODEL ACCURACY</p>
-                <h2 id="accuracy">--</h2>
-                <span>Historical test-set accuracy</span>
-            </div>
-
-            <div class="metric-card">
-                <p>RSI INDICATOR</p>
-                <h2 id="rsi">--</h2>
-                <span>Relative Strength Index</span>
-            </div>
-
-            <div class="metric-card prediction-card">
-                <p>NEXT SESSION OUTLOOK</p>
-                <h2 id="prediction">--</h2>
-                <span id="confidence">Model prediction</span>
-            </div>
-        </section>
-
-        <section class="chart-section">
-            <div class="section-heading">
+            <header class="topbar">
                 <div>
-                    <p class="eyebrow">PRICE MOVEMENT</p>
-                    <h2>Stock Performance</h2>
+                    <div class="eyebrow">STOCK MARKET / PREDICTIVE ANALYTICS</div>
+                    <h1>Market Overview</h1>
                 </div>
-                <span class="tag">LAST 90 SESSIONS</span>
-            </div>
-            <div id="priceChart" class="chart"></div>
-        </section>
+                <div class="data-status">HISTORICAL MARKET DATA</div>
+            </header>
 
-        <section class="bottom-grid">
-            <div class="chart-section">
+            <section class="intro-panel">
+                <div>
+                    <div class="eyebrow">PROJECT OVERVIEW</div>
+                    <h2>Understanding markets.<br><span>Predicting possibilities.</span></h2>
+                    <p>
+                        StockCast is a machine learning-based stock analysis system
+                        that studies historical market data, identifies patterns
+                        and estimates the direction of the next trading session.
+                    </p>
+                    <button class="primary-button" id="startPresentation">
+                        Explore project presentation →
+                    </button>
+                </div>
+                <div class="intro-decoration">
+                    <div class="orbit orbit-one"></div>
+                    <div class="orbit orbit-two"></div>
+                    <div class="orbit-core">SC</div>
+                </div>
+            </section>
+
+            <section class="overview-grid">
+                <article class="info-card">
+                    <div class="card-index">01 / PROBLEM</div>
+                    <h3>Problem Statement</h3>
+                    <p>
+                        Stock prices fluctuate due to multiple market factors.
+                        Understanding historical patterns manually can be difficult.
+                        StockCast uses data analysis and machine learning to support
+                        a more structured view of market trends.
+                    </p>
+                </article>
+
+                <article class="info-card">
+                    <div class="card-index">02 / OBJECTIVES</div>
+                    <h3>Project Objectives</h3>
+                    <ul>
+                        <li>Collect historical stock market data.</li>
+                        <li>Analyze price and volume patterns.</li>
+                        <li>Generate technical indicators.</li>
+                        <li>Train and evaluate a prediction model.</li>
+                    </ul>
+                </article>
+
+                <article class="info-card tech-card">
+                    <div class="card-index">03 / TECHNOLOGY</div>
+                    <h3>Technology Stack</h3>
+                    <div class="tech-tags">
+                        <span>Python</span>
+                        <span>Flask</span>
+                        <span>Yahoo Finance</span>
+                        <span>Pandas</span>
+                        <span>NumPy</span>
+                        <span>Scikit-learn</span>
+                        <span>Plotly</span>
+                    </div>
+                </article>
+            </section>
+
+            <section class="market-section">
                 <div class="section-heading">
                     <div>
-                        <p class="eyebrow">TRADING ACTIVITY</p>
-                        <h2>Volume Analysis</h2>
+                        <div class="eyebrow">MODEL OUTPUT</div>
+                        <h2>Stock Prediction Dashboard</h2>
                     </div>
-                </div>
-                <div id="volumeChart" class="chart small-chart"></div>
-            </div>
-
-            <div class="chart-section probability">
-                <p class="eyebrow">PREDICTION BREAKDOWN</p>
-                <h2>Probability Analysis</h2>
-
-                <div class="prob-row">
-                    <div><span>UPWARD</span><strong id="upValue">--</strong></div>
-                    <div class="progress"><div id="upBar" class="up-bar"></div></div>
+                    <div class="market-note">Based on historical daily data</div>
                 </div>
 
-                <div class="prob-row">
-                    <div><span>DOWNWARD</span><strong id="downValue">--</strong></div>
-                    <div class="progress"><div id="downBar" class="down-bar"></div></div>
+                <div class="selection-bar">
+                    <div class="field-group">
+                        <label for="ticker">SELECT STOCK</label>
+                        <select id="ticker">
+                            {% for name, symbol in tickers.items() %}
+                            <option value="{{ symbol }}">{{ name }} ({{ symbol }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="period">TIME PERIOD</label>
+                        <select id="period">
+                            <option value="6mo">6 Months</option>
+                            <option value="1y" selected>1 Year</option>
+                            <option value="2y">2 Years</option>
+                            <option value="5y">5 Years</option>
+                        </select>
+                    </div>
+
+                    <button id="analyzeBtn" class="primary-button">Analyze stock →</button>
                 </div>
 
-                <p class="disclaimer">
-                    Predictions are estimates generated from historical data.
-                    They are not financial advice or guaranteed outcomes.
+                <div id="loading" class="message" hidden>Analyzing historical market data...</div>
+                <div id="error" class="error-message" hidden></div>
+
+                <div id="results" hidden>
+                    <div class="stats-grid">
+                        <article class="stat-card">
+                            <span>CURRENT PRICE</span>
+                            <strong id="currentPrice">—</strong>
+                            <small id="priceChange">—</small>
+                        </article>
+                        <article class="stat-card">
+                            <span>MODEL ACCURACY</span>
+                            <strong id="accuracy">—</strong>
+                            <small>Historical test-set accuracy</small>
+                        </article>
+                        <article class="stat-card">
+                            <span>RSI INDICATOR</span>
+                            <strong id="rsi">—</strong>
+                            <small>14-day relative strength index</small>
+                        </article>
+                        <article class="stat-card prediction-stat">
+                            <span>NEXT SESSION ESTIMATE</span>
+                            <strong id="prediction">—</strong>
+                            <small id="predictionProbability">—</small>
+                        </article>
+                    </div>
+
+                    <article class="chart-card">
+                        <div class="chart-heading">
+                            <div>
+                                <div class="eyebrow">PRICE MOVEMENT</div>
+                                <h3>Historical Price Trend</h3>
+                            </div>
+                            <span class="chart-caption">LAST 90 TRADING SESSIONS</span>
+                        </div>
+                        <div id="priceChart"></div>
+                    </article>
+
+                    <article class="chart-card">
+                        <div class="chart-heading">
+                            <div>
+                                <div class="eyebrow">TRADING ACTIVITY</div>
+                                <h3>Volume Analysis</h3>
+                            </div>
+                        </div>
+                        <div id="volumeChart"></div>
+                    </article>
+
+                    <p class="disclaimer">
+                        StockCast provides experimental machine learning estimates
+                        for educational purposes only. Predictions are not financial advice.
+                    </p>
+                </div>
+            </section>
+        </section>
+
+        <!-- PRESENTATION PAGE -->
+        <section id="presentationPage" hidden>
+
+            <header class="topbar">
+                <div>
+                    <div class="eyebrow">STOCKCAST / PROJECT WALKTHROUGH</div>
+                    <h1>Project Presentation</h1>
+                </div>
+                <div class="data-status">FIVE PROJECT STAGES</div>
+            </header>
+
+            <section class="presentation-intro">
+                <div class="eyebrow">PROJECT WORKFLOW</div>
+                <h2>From raw data to<br><span>intelligent predictions.</span></h2>
+                <p>
+                    Explore how StockCast collects market data, processes it,
+                    trains a machine learning model and evaluates its results.
                 </p>
+            </section>
+
+            <div class="presentation-layout">
+
+                <aside class="stage-sidebar">
+                    <div class="eyebrow">PROJECT STAGES</div>
+
+                    <button class="stage-link active" data-stage="0">
+                        <span>01</span>
+                        <div>Dataset & Data Collection</div>
+                    </button>
+
+                    <button class="stage-link" data-stage="1">
+                        <span>02</span>
+                        <div>Exploratory Data Analysis</div>
+                    </button>
+
+                    <button class="stage-link" data-stage="2">
+                        <span>03</span>
+                        <div>Preprocessing & Feature Engineering</div>
+                    </button>
+
+                    <button class="stage-link" data-stage="3">
+                        <span>04</span>
+                        <div>Model Selection & Training</div>
+                    </button>
+
+                    <button class="stage-link" data-stage="4">
+                        <span>05</span>
+                        <div>Model Evaluation & Results</div>
+                    </button>
+                </aside>
+
+                <article class="stage-content">
+                    <div class="stage-topline">
+                        <span id="stageNumber">STAGE 01 / 05</span>
+                        <span id="stageProgress">20% COMPLETE</span>
+                    </div>
+
+                    <div class="progress-track">
+                        <div id="progressFill"></div>
+                    </div>
+
+                    <div id="stageDetails">
+                        <div class="eyebrow">DATASET & DATA COLLECTION</div>
+                        <h2>Gathering the market data</h2>
+                        <p>
+                            StockCast retrieves historical stock market information
+                            through the Yahoo Finance data source using the yfinance
+                            Python library.
+                        </p>
+                        <div class="detail-grid">
+                            <div class="detail-box">
+                                <span>DATA SOURCE</span>
+                                <strong>Yahoo Finance</strong>
+                            </div>
+                            <div class="detail-box">
+                                <span>DATA TYPE</span>
+                                <strong>Historical Daily Data</strong>
+                            </div>
+                            <div class="detail-box">
+                                <span>MARKET FIELDS</span>
+                                <strong>Open, High, Low, Close, Volume</strong>
+                            </div>
+                        </div>
+                        <div class="explanation-box">
+                            <h3>What happens in this stage?</h3>
+                            <p>
+                                The user selects a stock and time period. The system
+                                downloads historical price and trading-volume records.
+                                This dataset becomes the foundation for the analysis
+                                and prediction process.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="stage-navigation">
+                        <button id="previousStage" class="secondary-button" disabled>
+                            ← Previous
+                        </button>
+                        <button id="nextStage" class="primary-button">
+                            Next stage →
+                        </button>
+                    </div>
+                </article>
             </div>
         </section>
 
-        <footer>
-            STOCKCAST · MACHINE LEARNING POWERED MARKET ANALYSIS
-            <span id="updated">Not yet updated</span>
+        <footer class="footer">
+            STOCKCAST · MACHINE LEARNING PROJECT
+            <span>EDUCATIONAL ANALYTICS SYSTEM</span>
         </footer>
+
     </main>
 </div>
 

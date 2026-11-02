@@ -1,9 +1,9 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, jsonify
 import yfinance as yf
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from datetime import datetime
 
 app = Flask(__name__)
@@ -18,6 +18,7 @@ TICKERS = {
     "HDFC Bank": "HDFCBANK.NS",
     "ICICI Bank": "ICICIBANK.NS"
 }
+
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -35,6 +36,9 @@ def analyze_stock(ticker, period):
         raise ValueError("Not enough stock data available. Try another stock or time period.")
 
     df = df.copy()
+    raw_rows = len(df)
+    raw_missing = int(df.isna().sum().sum())
+
     df["Return"] = df["Close"].pct_change()
     df["MA_5"] = df["Close"].rolling(5).mean()
     df["MA_10"] = df["Close"].rolling(10).mean()
@@ -43,7 +47,7 @@ def analyze_stock(ticker, period):
     df["Volume_Change"] = df["Volume"].pct_change()
     df["RSI"] = calculate_rsi(df["Close"])
 
-    # Predict whether the next trading session closes higher
+    # Target: 1 if the next trading session closes higher, otherwise 0
     df["Target"] = (df["Close"].shift(-1) > df["Close"]).astype(int)
 
     features = [
@@ -52,8 +56,6 @@ def analyze_stock(ticker, period):
     ]
 
     clean = df.dropna(subset=features).copy()
-
-    # Remove the last row because its future target is unknown
     training_data = clean.iloc[:-1]
 
     if len(training_data) < 80:
@@ -66,6 +68,7 @@ def analyze_stock(ticker, period):
     y = y[valid]
 
     split = int(len(X) * 0.8)
+
     if split < 30 or len(X) - split < 10:
         raise ValueError("Not enough data for model evaluation.")
 
@@ -84,12 +87,20 @@ def analyze_stock(ticker, period):
     predictions = model.predict(X_test)
     accuracy = accuracy_score(y_test, predictions) * 100
 
+    precision = precision_score(y_test, predictions, zero_division=0) * 100
+    recall = recall_score(y_test, predictions, zero_division=0) * 100
+    f1 = f1_score(y_test, predictions, zero_division=0) * 100
+
+    matrix = confusion_matrix(y_test, predictions, labels=[0, 1])
+
     latest = clean.iloc[-1:][features].replace([np.inf, -np.inf], np.nan)
+
     if latest.isna().any().any():
         raise ValueError("Latest stock indicators are incomplete.")
 
     probabilities = model.predict_proba(latest)[0]
     classes = list(model.classes_)
+
     up_probability = float(probabilities[classes.index(1)]) if 1 in classes else 0
     down_probability = float(probabilities[classes.index(0)]) if 0 in classes else 0
 
@@ -105,6 +116,21 @@ def analyze_stock(ticker, period):
             "volume": int(row["Volume"])
         })
 
+    # Actual dataset and exploratory analysis values
+    close = df["Close"].dropna()
+    returns = df["Return"].dropna()
+
+    correlation = df[features].corr().round(3).fillna(0).to_dict()
+
+    feature_importance = [
+        {
+            "feature": name,
+            "importance": round(float(value) * 100, 2)
+        }
+        for name, value in zip(features, model.feature_importances_)
+    ]
+    feature_importance.sort(key=lambda item: item["importance"], reverse=True)
+
     return {
         "ticker": ticker,
         "prediction": prediction,
@@ -115,27 +141,82 @@ def analyze_stock(ticker, period):
         "change": round(float(df["Close"].pct_change().iloc[-1]) * 100, 2),
         "rsi": round(float(clean["RSI"].iloc[-1]), 2),
         "history": history,
-        "last_updated": datetime.now().strftime("%d %b %Y, %I:%M %p")
+        "last_updated": datetime.now().strftime("%d %b %Y, %I:%M %p"),
+
+        # Presentation: Dataset and Data Collection
+        "dataset": {
+            "ticker": ticker,
+            "period": period,
+            "source": "Yahoo Finance",
+            "records": raw_rows,
+            "first_date": df.index.min().strftime("%Y-%m-%d"),
+            "last_date": df.index.max().strftime("%Y-%m-%d"),
+            "columns": ["Open", "High", "Low", "Close", "Volume"]
+        },
+
+        # Presentation: Exploratory Data Analysis
+        "eda": {
+            "average_price": round(float(close.mean()), 2),
+            "highest_price": round(float(close.max()), 2),
+            "lowest_price": round(float(close.min()), 2),
+            "average_daily_return": round(float(returns.mean() * 100), 3),
+            "daily_volatility": round(float(returns.std() * 100), 3),
+            "missing_values": raw_missing,
+            "correlation": correlation
+        },
+
+        # Presentation: Preprocessing and Feature Engineering
+        "preprocessing": {
+            "original_records": raw_rows,
+            "usable_records": len(X),
+            "removed_records": raw_rows - len(X),
+            "missing_values_before_processing": raw_missing,
+            "features": features,
+            "train_records": len(X_train),
+            "test_records": len(X_test),
+            "split": "80% training / 20% testing",
+            "indicators": [
+                "Daily Returns",
+                "5-day Moving Average",
+                "10-day Moving Average",
+                "20-day Moving Average",
+                "10-day Volatility",
+                "Volume Change",
+                "14-day RSI"
+            ]
+        },
+
+        # Presentation: Model Selection and Training
+        "model": {
+            "name": "Random Forest Classifier",
+            "estimators": 150,
+            "max_depth": 6,
+            "random_state": 42,
+            "feature_importance": feature_importance
+        },
+
+        # Presentation: Model Evaluation and Results
+        "evaluation": {
+            "accuracy": round(accuracy, 2),
+            "precision": round(precision, 2),
+            "recall": round(recall, 2),
+            "f1_score": round(f1, 2),
+            "confusion_matrix": matrix.tolist(),
+            "class_labels": ["DOWN", "UP"],
+            "evaluation_records": len(y_test)
+        }
     }
 
 
 @app.route("/")
 def home():
-    return render_template("index.html", tickers=TICKERS, active="dashboard")
-
-
-@app.route("/market-analysis")
-def market_analysis():
-    return render_template("index.html", tickers=TICKERS, active="market")
-
-
-@app.route("/predictions")
-def predictions():
-    return render_template("index.html", tickers=TICKERS, active="predictions")
+    return render_template("index.html", tickers=TICKERS, active="overview")
 
 
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
+    from flask import request
+
     data = request.get_json(silent=True) or {}
     ticker = data.get("ticker", "AAPL")
     period = data.get("period", "1y")
@@ -160,4 +241,3 @@ def health():
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
-
